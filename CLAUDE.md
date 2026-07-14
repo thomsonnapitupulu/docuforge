@@ -12,6 +12,7 @@ document for export as Markdown or DOCX.
 
 For the commit/workflow policy (when to stage and commit, and that pushing is off-limits
 for agents), see `AGENTS.md`. For what's built vs. what's still planned, see `ROADMAP.md`.
+For Docker deployment and secrets management guidance, see `README.md`'s Deployment section.
 
 ## Architecture principle
 

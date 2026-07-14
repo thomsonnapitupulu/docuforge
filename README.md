@@ -94,3 +94,48 @@ docuforge/
    - Self-critiques against source docs
    - Re-drafts on failure (up to 3 retries per section)
 4. **Export** the compiled document as Markdown or DOCX
+
+## Deployment
+
+### Docker (backend)
+
+```bash
+docker compose up -d --build
+```
+
+Single container — no Redis/Postgres/separate services required. `docker-compose.yml`
+mounts one named volume (`docuforge_data`) for both the Chroma vector store and the
+SQLite job store, so data survives container restarts and redeploys. The image bakes
+Chroma's embedding model in at build time, so a freshly-built container has no cold-start
+delay on its first request.
+
+The frontend isn't containerized yet — run it separately (`cd frontend && npm run dev`,
+or `npm run build` + serve the static output behind any web server) and point
+`VITE_API_URL` at wherever the backend container is reachable.
+
+### Secrets management
+
+Locally, `backend/.env` (never committed — see `.gitignore`) is enough. For anything
+beyond your own machine:
+
+- **Don't bake secrets into the Docker image.** `backend/.dockerignore` already excludes
+  `.env`; keep it that way. `docker-compose.yml` reads `env_file: ./backend/.env` from the
+  *host* at container start — that file only needs to exist on whatever machine runs
+  `docker compose up`, never inside the image or a git commit.
+- **On a PaaS (Fly.io, Railway, Render, a VPS, etc.), use that platform's own environment
+  variable / secrets feature** (its dashboard or CLI) instead of shipping a `.env` file to
+  the server. This needs no extra service or library — consistent with this project's
+  preference for the fewest moving parts (see `CLAUDE.md`'s architecture principle) — and
+  every mainstream host already provides it.
+- **Reach for a dedicated secrets manager (AWS Secrets Manager, GCP Secret Manager,
+  HashiCorp Vault, etc.) only if you have a real reason to** — multiple services sharing
+  credentials, compliance requirements, or secret rotation automation. For DocuForge's
+  current single-container shape, that's very likely more infrastructure than the problem
+  needs.
+- **If a key leaks** (committed by accident, pasted somewhere public): rotate it
+  immediately in the Anthropic console, update wherever it's stored for deployment, and
+  restart the backend. Rotating doesn't require any code change — `ANTHROPIC_API_KEY` is
+  read fresh from the environment at process startup (`backend/core/config.py`).
+- **CI needs no real secrets.** `backend/tests/conftest.py` supplies a dummy
+  `ANTHROPIC_API_KEY` so the whole test suite runs offline — don't add a real key as a CI
+  secret unless a future change genuinely needs to call the live API in a test.
