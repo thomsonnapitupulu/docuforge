@@ -1,0 +1,20 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    environment:
+      # Both Chroma (vector store) and the SQLite job store are file-based —
+      # point them inside the one mounted volume below so data survives
+      # container restarts/recreation, regardless of what backend/.env has.
+      CHROMA_PERSIST_DIR: /app/data/chroma_db
+      JOB_DB_PATH: /app/data/jobs.db
+    volumes:
+      - docuforge_data:/app/data
+    restart: unless-stopped
+
+volumes:
+  docuforge_data:
