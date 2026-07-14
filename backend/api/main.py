@@ -14,6 +14,7 @@ Routes:
 import asyncio
 import json
 import uuid
+from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
 from fastapi import FastAPI, File, UploadFile, BackgroundTasks, HTTPException, Request
@@ -39,10 +40,22 @@ configure_logging()
 logger = get_logger(__name__)
 settings = get_settings()
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Runs in the background so /health responds immediately even while this
+    # is in progress; the first real /ingest or /generate call still pays the
+    # cost if it lands before this finishes, but no longer always does.
+    loop = asyncio.get_event_loop()
+    loop.run_in_executor(None, vector_store.warm_up)
+    yield
+
+
 app = FastAPI(
     title="DocuForge",
     description="Agentic RAG pipeline for BRD/FSD/TSD generation",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(

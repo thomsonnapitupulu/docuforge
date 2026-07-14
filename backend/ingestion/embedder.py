@@ -10,6 +10,8 @@ Retrieval strategy (Parent-Child RAG):
 2. Look up their parent_id, fetch full parent content for LLM context.
 """
 
+import time
+
 import chromadb
 from chromadb.config import Settings as ChromaSettings
 from utils.logger import get_logger
@@ -37,6 +39,20 @@ class VectorStoreManager:
             name="parent_chunks",
             metadata={"hnsw:space": "cosine"}
         )
+
+    def warm_up(self) -> None:
+        """
+        Forces Chroma's default embedding function to initialize now instead
+        of on the first real request. It downloads an ONNX model
+        (~/.cache/chroma/onnx_models — a user-level cache, independent of
+        CHROMA_PERSIST_DIR) on first use: near-instant once cached, but
+        60-90+ seconds on a genuinely fresh environment (a clean container
+        with no pre-warmed cache), which would otherwise make a real user's
+        first request look like a hang. Call once at process startup.
+        """
+        start = time.monotonic()
+        self.child_col.query(query_texts=["warm up embedding model"], n_results=1)
+        logger.info("vector_store_warmed_up", seconds=round(time.monotonic() - start, 2))
 
     def upsert_chunks(self, chunks: list[Chunk]) -> None:
         """Store both parent and child chunks into their respective collections."""
