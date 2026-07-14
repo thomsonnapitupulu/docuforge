@@ -139,4 +139,12 @@ basic React pages all exist and appear functionally complete for a single-user l
       called from a FastAPI lifespan handler in the background so `/health` isn't blocked, and
       — the real production fix — the Dockerfile now bakes the model into the image at build
       time. Verified live: a container built this way warmed up in 0.56s instead of 60-90s.
-- [ ] Secrets management guidance beyond local `.env` (e.g. for a hosted deployment)
+- [x] Secrets management guidance beyond local `.env` — added a Deployment section to
+      `README.md`: never bake secrets into the Docker image, use your platform's own env
+      var/secrets feature by default (consistent with the fewest-moving-parts principle),
+      escalate to a dedicated secrets manager only for a real multi-service/compliance need,
+      what to do if a key leaks, and why CI needs no real secrets.
+
+**Phase 4 is otherwise complete.** Auth remains explicitly out of scope — this is a
+single-user local/self-hosted tool, and the roadmap has always scoped auth to "only if/when
+multi-user access is needed."
