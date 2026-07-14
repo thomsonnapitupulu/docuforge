@@ -76,6 +76,16 @@ Both dev servers are commonly left running across sessions on ports 8000 and 517
 for existing listeners (`lsof -nP -iTCP -sTCP:LISTEN`) before starting new ones, and kill
 stale ones rather than stacking duplicates.
 
+Via Docker (backend only):
+```bash
+docker compose up -d --build
+```
+Single container — no Redis/Postgres/separate services. `CHROMA_PERSIST_DIR` and
+`JOB_DB_PATH` are both pointed at one named volume (`docuforge_data`) by
+`docker-compose.yml`, so vector data and job state both survive container restarts.
+`backend/Dockerfile` bakes Chroma's embedding model into the image at build time (see
+below) — a container built this way has zero cold-start latency.
+
 Backend tests:
 ```bash
 cd backend
@@ -112,6 +122,13 @@ took 60-90+ seconds on a clean CI container and made an unrelated rate-limit tes
 - **`/ingest` and `/generate` are rate-limited** per client IP (`api/rate_limit.py`, in-memory,
   single-instance only — see its docstring). Configurable via `INGEST_RATE_LIMIT_PER_MINUTE`
   (default 20) and `GENERATE_RATE_LIMIT_PER_MINUTE` (default 5).
+- **Chroma's embedding model is warmed up, not lazy-loaded on first request.**
+  `VectorStoreManager.warm_up()` (`ingestion/embedder.py`) is called from a FastAPI lifespan
+  handler in the background at startup, and — the real fix — `backend/Dockerfile` bakes the
+  model into the image at build time. Don't remove either without understanding why: the model
+  downloads to `~/.cache/chroma/onnx_models`, a *user-level* cache independent of
+  `CHROMA_PERSIST_DIR`, so it's easy to not notice this matters in local dev (already cached)
+  and only discover it in a fresh container/CI run, where it costs 60-90+ seconds.
 - **Backend test coverage is partial**: `ingestion/parser.py`, `ingestion/chunker.py`, and
   the graph routing functions (`route_after_evaluation`, `route_after_advance`,
   `advance_section`, `route_after_planning`) are covered, plus a full mocked graph invocation

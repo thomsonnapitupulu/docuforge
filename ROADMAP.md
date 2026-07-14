@@ -119,18 +119,24 @@ basic React pages all exist and appear functionally complete for a single-user l
       and `GENERATE_RATE_LIMIT_PER_MINUTE` (default 5). Verified live against a real running
       backend: 5 real `/ingest` requests with a limit of 3/min → first 3 returned 200, 4th and
       5th correctly returned 429.
-- [ ] Deployment config (Dockerfile / docker-compose for backend + Chroma persistence volume)
+- [x] Deployment config (Dockerfile / docker-compose for backend + Chroma persistence volume)
+      — single container, no extra services. `CHROMA_PERSIST_DIR` and `JOB_DB_PATH` both point
+      into one named volume (`docuforge_data`), so both survive container restarts/recreation.
+      Verified live: built the image for real, ran the full stack via `docker compose`,
+      ingested a document, restarted the container, and confirmed the data was still there via
+      `/stats` — then inspected the volume directly to confirm both `chroma_db/` and `jobs.db`
+      were actually present.
 - [x] CI (lint + backend test suite from Phase 1) — `.github/workflows/ci.yml` runs `ruff
       check` + `pytest` on push/PR. Added `backend/ruff.toml` (default E/F rules, E501
       ignored — it only flagged long prompt templates, not bugs). Fixed the 8 real issues ruff
       found (all trivial unused-import cleanups). Verified for real via `act` running the exact
       workflow in a clean Docker container (not just "should work") — this caught a genuine
       test-isolation bug (see below), fixed, re-verified clean.
-- [ ] **Newly discovered (while verifying CI)**: on a cold environment, the very first
-      `/ingest` call takes 60-90+ seconds because Chroma's default embedding function downloads
-      an ONNX model on first use. This was invisible in local dev (model already cached on this
-      machine from earlier sessions) but showed up immediately in a clean CI container. Worth
-      either warming up the embedding model at backend startup, or documenting the expected
-      cold-start latency for fresh deployments — otherwise a fresh production deploy's first
-      real user request could look like a hang or a timeout.
+- [x] Fixed the embedding cold-start issue found while verifying CI: Chroma's default embedding
+      function downloads an ONNX model to a user-level cache
+      (`~/.cache/chroma/onnx_models`, independent of `CHROMA_PERSIST_DIR`) on first use —
+      60-90+ seconds on a genuinely fresh environment. Added `VectorStoreManager.warm_up()`,
+      called from a FastAPI lifespan handler in the background so `/health` isn't blocked, and
+      — the real production fix — the Dockerfile now bakes the model into the image at build
+      time. Verified live: a container built this way warmed up in 0.56s instead of 60-90s.
 - [ ] Secrets management guidance beyond local `.env` (e.g. for a hosted deployment)
