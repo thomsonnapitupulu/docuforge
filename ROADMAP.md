@@ -36,14 +36,21 @@ basic React pages all exist and appear functionally complete for a single-user l
       done via Playwright driving the real UI through upload → generate; also caught a real
       backend failure live (see new item below), confirming the error path works against a
       genuine failure, not just a simulated one
-- [ ] **Newly discovered**: `graph/builder.py` has no conditional routing after `plan_document`
-      to handle TOC-parsing failures — when the LLM's TOC JSON is truncated or malformed
-      (observed live: `max_tokens=2000` was too low for a full section list, producing
-      "Unterminated string" `json.JSONDecodeError`), the graph unconditionally proceeds to
-      `retrieve_context` against an empty/error `toc`, crashing instead of ending in a clean
-      `"status": "error"` state. Fix: either raise `plan_document`'s `max_tokens`, or add a
-      conditional edge from `plan_document` straight to `END`/`compile_document` when
-      `state["error"]` is set.
+- [x] Fixed `plan_document` TOC-parsing crash, and a much bigger root cause behind it:
+      `graph/builder.py` compiled `StateGraph(dict)` — a plain, un-annotated dict schema —
+      which LangGraph treats as a single opaque channel and **wholesale-replaces on every
+      node call**, since every node only returns a partial update. This silently dropped
+      `artifact_type`/`toc`/etc. after the very first node ran, meaning no generation could
+      ever complete past `plan_document` at all (proven with a minimal repro in
+      `backend/tests/test_graph_integration.py`). Fixed by introducing
+      `GenerationStateSchema` (a proper `TypedDict`) in `graph/state.py` and using it as the
+      graph schema instead of plain `dict`, so LangGraph merges per-key. Also added
+      `route_after_planning()` so a malformed TOC ends cleanly in `"status": "error"` instead
+      of crashing downstream, and raised planning's `max_tokens` 2000 → 4096. Verified live:
+      reran the original crash scenario (now ends cleanly), ran a full mocked happy path to
+      completion, and drove a real generation through the browser against the live Anthropic
+      API — state now correctly survives 8+ real node transitions including retry/redraft
+      cycles.
 
 ## Phase 2 — Persistence & reliability
 
@@ -51,6 +58,10 @@ basic React pages all exist and appear functionally complete for a single-user l
       the simplest fit for a single-instance deployment; Redis if concurrent workers are needed)
 - [ ] Add retry/backoff around Anthropic API calls in `graph/nodes.py` (`_llm` helper)
 - [ ] Add job cancellation (currently no way to stop an in-flight `/generate` job)
+- [ ] **Newly observed**: `PLANNING_PROMPT` (`core/prompts.py`) produced a 30-section TOC for
+      a single small BRD test doc — each section costs 1-3 LLM round trips (draft + critique +
+      retries), so a real run can take 15-20+ minutes and a lot of API spend. Worth tuning the
+      prompt to bound section count relative to reference doc size/complexity.
 
 ## Phase 3 — Frontend completeness
 

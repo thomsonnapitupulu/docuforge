@@ -78,7 +78,7 @@ Backend tests:
 ```bash
 cd backend
 source venv/bin/activate           # or .venv, whichever this checkout uses
-pytest                             # runs backend/tests/, ~20 tests
+pytest                             # runs backend/tests/, ~25 tests
 ```
 `backend/tests/conftest.py` points Chroma at a throwaway tmp dir and sets a dummy
 `ANTHROPIC_API_KEY` if one isn't already set, so running tests never touches
@@ -91,8 +91,16 @@ pytest                             # runs backend/tests/, ~20 tests
   `ROADMAP.md` Phase 2).
 - **Backend test coverage is partial**: `ingestion/parser.py`, `ingestion/chunker.py`, and
   the graph routing functions (`route_after_evaluation`, `route_after_advance`,
-  `advance_section`) are covered. The LLM-calling nodes (`plan_document`, `draft_section`,
-  `evaluate_section`, `compile_document`) and the frontend have no automated tests yet.
+  `advance_section`, `route_after_planning`) are covered, plus a full mocked graph invocation
+  in `test_graph_integration.py`. The LLM-calling node internals (prompt content/quality) and
+  the frontend have no automated tests yet.
+- **Always use `GenerationStateSchema` (a `TypedDict`, defined in `graph/state.py`) as the
+  `StateGraph(...)` schema in `graph/builder.py` — never plain `dict`.** A plain, un-annotated
+  `dict` schema makes LangGraph treat state as one opaque channel that gets wholesale-replaced
+  by every node's return value, silently dropping any key a node didn't re-include. Since
+  every node in `graph/nodes.py` returns only a partial update, this previously meant no
+  generation could complete past the first node at all — see `test_graph_integration.py` for
+  the regression test that guards against reintroducing this.
 - **`backend/chroma_db/`** is local vector store data, not source — it's gitignored, never
   hand-edit or commit it.
 - **`.env`** holds `ANTHROPIC_API_KEY` and other secrets — never read its contents into a
