@@ -13,6 +13,15 @@ document for export as Markdown or DOCX.
 For the commit/workflow policy (when to stage and commit, and that pushing is off-limits
 for agents), see `AGENTS.md`. For what's built vs. what's still planned, see `ROADMAP.md`.
 
+## Architecture principle
+
+Favor cost-optimized, simple architecture with the fewest possible dependent services/tools.
+Prefer proven, widely-adopted tech over niche or trendy alternatives. When choosing between
+options (e.g. job persistence, deployment infra), default to the one with the fewest moving
+parts and broadest market adoption — justify any added service/dependency against this bar
+before introducing it. Chroma (embedded, no separate server) and SQLite (over Redis/Postgres)
+are examples of the right call under this constraint; see `ROADMAP.md` Phase 2/4.
+
 ## Architecture
 
 ```
