@@ -1,5 +1,10 @@
 from core.config import get_settings
-from graph.nodes import advance_section, route_after_advance, route_after_evaluation
+from graph.nodes import (
+    advance_section,
+    route_after_advance,
+    route_after_evaluation,
+    route_after_planning,
+)
 from graph.state import SectionDraft, SectionPlan
 
 settings = get_settings()
@@ -70,3 +75,15 @@ def test_route_after_advance_continues_to_retrieve_context_when_sections_remain(
 def test_route_after_advance_compiles_when_all_sections_done():
     state = {"toc": _toc(), "current_section_idx": 2}
     assert route_after_advance(state) == "compile_document"
+
+
+def test_route_after_planning_stops_on_error_instead_of_crashing_downstream():
+    # Regression test: a malformed/truncated TOC from the LLM used to crash
+    # retrieve_context (empty toc) instead of ending the graph cleanly.
+    state = {"error": "TOC parsing failed: Unterminated string", "status": "error", "toc": []}
+    assert route_after_planning(state) == "end"
+
+
+def test_route_after_planning_continues_when_toc_parsed_successfully():
+    state = {"toc": _toc(), "status": "generating"}
+    assert route_after_planning(state) == "retrieve_context"

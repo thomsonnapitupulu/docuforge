@@ -6,9 +6,8 @@ in the generation graph. It accumulates sections, tracks retries, and
 carries the final compiled document.
 """
 
-from typing import Annotated, Any, Optional
+from typing import Optional, TypedDict
 from dataclasses import dataclass, field
-import operator
 
 
 @dataclass
@@ -31,6 +30,26 @@ class SectionDraft:
     critic_issues: list[str] = field(default_factory=list)
     improvement_instructions: str = ""
     retrieved_context: str = ""
+
+
+class GenerationStateSchema(TypedDict, total=False):
+    """
+    LangGraph state schema. Passed to StateGraph(...) so each field becomes its
+    own merge-safe channel — a node's return dict updates only the keys it
+    includes, leaving the rest of the state untouched. (A plain, un-annotated
+    `dict` schema does NOT do this: LangGraph treats it as a single opaque
+    channel and replaces the *entire* state with whatever a node returns,
+    silently dropping every key the node didn't re-include.)
+    """
+    artifact_type: str
+    reference_summary: str
+    toc: list["SectionPlan"]
+    current_section_idx: int
+    sections: list["SectionDraft"]
+    final_document: str
+    error: Optional[str]
+    status: str
+    events: list[str]
 
 
 class GenerationState(dict):

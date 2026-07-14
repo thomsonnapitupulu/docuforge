@@ -8,6 +8,8 @@ Assembles the generation state machine:
     ▼
   plan_document
     │
+    ├── [TOC parse failed] ──► END
+    │
     ▼
   retrieve_context ◄──────────────────────┐
     │                                     │
@@ -42,10 +44,11 @@ from graph.nodes import (
     evaluate_section,
     advance_section,
     compile_document,
+    route_after_planning,
     route_after_evaluation,
     route_after_advance,
 )
-from graph.state import GenerationState
+from graph.state import GenerationStateSchema
 
 
 def build_generation_graph():
@@ -54,7 +57,7 @@ def build_generation_graph():
     Call .invoke(state) or .stream(state) on the returned graph.
     """
 
-    builder = StateGraph(dict)  # Using plain dict for maximum compatibility
+    builder = StateGraph(GenerationStateSchema)
 
     # ── Register nodes ───────────────────────────────────────────────────────
     builder.add_node("plan_document",    plan_document)
@@ -68,9 +71,18 @@ def build_generation_graph():
     builder.set_entry_point("plan_document")
 
     # ── Linear edges ─────────────────────────────────────────────────────────
-    builder.add_edge("plan_document",    "retrieve_context")
     builder.add_edge("retrieve_context", "draft_section")
     builder.add_edge("draft_section",    "evaluate_section")
+
+    # ── Conditional: Planning result → proceed OR stop on TOC parse failure ──
+    builder.add_conditional_edges(
+        "plan_document",
+        route_after_planning,
+        {
+            "retrieve_context": "retrieve_context",
+            "end": END,
+        }
+    )
 
     # ── Conditional: Critic result → redraft OR advance ──────────────────────
     builder.add_conditional_edges(

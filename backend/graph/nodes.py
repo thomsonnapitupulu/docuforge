@@ -59,7 +59,7 @@ def plan_document(state: dict) -> dict:
         artifact_guidance=ARTIFACT_GUIDANCE[artifact_type]
     )
 
-    raw = _llm(prompt, max_tokens=2000)
+    raw = _llm(prompt, max_tokens=4096)
 
     # Strip any accidental markdown fences
     raw = raw.strip()
@@ -76,7 +76,8 @@ def plan_document(state: dict) -> dict:
         logger.error("toc_parse_failed", error=str(e), raw=raw[:200])
         return {
             "error": f"TOC parsing failed: {e}",
-            "status": "error"
+            "status": "error",
+            "events": state.get("events", []) + ["❌ Planning failed: could not parse table of contents"],
         }
 
     logger.info("toc_generated", section_count=len(toc))
@@ -89,6 +90,18 @@ def plan_document(state: dict) -> dict:
         "sections": [],
         "events": state.get("events", []) + [f"📋 Plan complete: {len(toc)} sections planned"]
     }
+
+
+def route_after_planning(state: dict) -> str:
+    """
+    Returns the name of the next node:
+    - "retrieve_context" → TOC planned successfully
+    - "end"              → plan_document failed (state["error"] set); stop instead of
+                           crashing downstream on an empty/missing toc
+    """
+    if state.get("error"):
+        return "end"
+    return "retrieve_context"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
