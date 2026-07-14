@@ -69,19 +69,18 @@ basic React pages all exist and appear functionally complete for a single-user l
       Verified live: cancelled a real 40-section run while `plan_document`'s LLM call was still
       in flight — stopped cleanly at `status=cancelled` right after that node, before any
       section drafting began. 5 new tests in `test_job_cancellation.py`.
-- [ ] **Newly observed**: `PLANNING_PROMPT` (`core/prompts.py`) produced a 30-40 section TOC
-      for a single small BRD test doc (seen twice now) — each section costs 1-3 LLM round trips
-      (draft + critique + retries), so a real run can take 15-20+ minutes and a lot of API
-      spend. Worth tuning the prompt to bound section count relative to reference doc size/
-      complexity. (Job cancellation above makes this less costly to hit, but doesn't fix the
-      root over-generation behavior.)
-- [ ] **Newly discovered**: `.gitignore` had a bare `lib/` rule (meant for Python's root-level
-      `lib/`/`lib64/` packaging dirs) that, with no leading slash, matched `lib/` at ANY depth —
-      silently excluding `frontend/src/lib/api.js` from git entirely, since the very first
-      commit. Fixed by anchoring to `/lib/`, `/lib64/` and adding the directory to version
-      control. Worth double-checking no other files were silently excluded by an overly broad
-      pattern in this `.gitignore` (it's a large, likely-templated file with rules for many
-      ecosystems this project doesn't use).
+- [x] Bounded the oversized TOC — `PLANNING_PROMPT` (`core/prompts.py`) had produced 30-40
+      sections for a single small BRD test doc (seen twice), each costing 1-3 LLM round trips.
+      Added an explicit size limit (≤15 entries total, ≤2 subsections per top-level section,
+      only split when the material justifies it). Verified live with real LLM calls: 12-13
+      sections now, run twice and across all three artifact types (BRD/FSD/TSD), down from
+      30-40.
+- [x] Fixed `.gitignore`'s bare `lib/` rule (meant for Python's root-level `lib/`/`lib64/`
+      packaging dirs) which, with no leading slash, matched `lib/` at ANY depth — silently
+      excluding `frontend/src/lib/api.js` from git entirely since the very first commit. Fixed
+      by anchoring to `/lib/`, `/lib64/` and adding the directory to version control. Audited
+      the rest of `.gitignore` via `git status --ignored` — no other project source files are
+      unexpectedly excluded (only `.claude/`, which is intentional).
 
 ## Phase 3 — Frontend completeness
 
