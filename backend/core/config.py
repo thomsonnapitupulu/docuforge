@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     chroma_persist_dir: str = "./chroma_db"
     chroma_collection_name: str = "docuforge_chunks"
 
+    # Job store
+    job_db_path: str = "./jobs.db"
+
     # Chunking
     child_chunk_size: int = 250
     parent_chunk_size: int = 1500

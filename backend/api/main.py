@@ -20,6 +20,7 @@ from fastapi import FastAPI, File, UploadFile, BackgroundTasks, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, Response
 
+from api.job_store import JobStore
 from api.schemas import (
     ArtifactType, GenerateRequest, GenerateResponse,
     JobStatusResponse, IngestionResponse, StatsResponse
@@ -58,9 +59,7 @@ chunker  = HierarchicalChunker(
     parent_chunk_tokens=settings.parent_chunk_size,
 )
 vector_store = VectorStoreManager()
-
-# In-memory job store (replace with Redis for production)
-_jobs: dict[str, dict] = {}
+job_store = JobStore(settings.job_db_path)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -113,16 +112,7 @@ async def generate_document(request: GenerateRequest, background_tasks: Backgrou
 
     job_id = request.job_id or str(uuid.uuid4())
 
-    _jobs[job_id] = {
-        "job_id": job_id,
-        "status": "running",
-        "artifact_type": request.artifact_type.value,
-        "sections_complete": 0,
-        "total_sections": 0,
-        "events": [],
-        "final_document": None,
-        "error": None,
-    }
+    job_store.create(job_id, request.artifact_type.value)
 
     background_tasks.add_task(_run_generation, job_id, request.artifact_type.value)
 
@@ -135,7 +125,6 @@ async def generate_document(request: GenerateRequest, background_tasks: Backgrou
 
 async def _run_generation(job_id: str, artifact_type: str):
     """Background task: runs the LangGraph pipeline and updates job store."""
-    job = _jobs[job_id]
     try:
         initial_state = GenerationState.initial(artifact_type)
 
@@ -148,21 +137,23 @@ async def _run_generation(job_id: str, artifact_type: str):
 
         toc = final_state.get("toc", [])
         sections = final_state.get("sections", [])
+        status = final_state.get("status", "done")
 
-        job.update({
-            "status": final_state.get("status", "done"),
-            "total_sections": len(toc),
-            "sections_complete": len([s for s in sections if s.passed_critic or s.retry_count >= settings.max_retries_per_section]),
-            "events": final_state.get("events", []),
-            "final_document": final_state.get("final_document", ""),
-            "error": final_state.get("error"),
-        })
+        job_store.update(
+            job_id,
+            status=status,
+            total_sections=len(toc),
+            sections_complete=len([s for s in sections if s.passed_critic or s.retry_count >= settings.max_retries_per_section]),
+            events=final_state.get("events", []),
+            final_document=final_state.get("final_document", ""),
+            error=final_state.get("error"),
+        )
 
-        logger.info("generation_complete", job_id=job_id, status=job["status"])
+        logger.info("generation_complete", job_id=job_id, status=status)
 
     except Exception as e:
         logger.error("generation_error", job_id=job_id, error=str(e))
-        job.update({"status": "error", "error": str(e)})
+        job_store.update(job_id, status="error", error=str(e))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -172,7 +163,7 @@ async def _run_generation(job_id: str, artifact_type: str):
 @app.get("/jobs/{job_id}", response_model=JobStatusResponse)
 async def get_job_status(job_id: str):
     """Poll for job status and progress."""
-    job = _jobs.get(job_id)
+    job = job_store.get(job_id)
     if not job:
         raise HTTPException(404, f"Job {job_id} not found")
     return JobStatusResponse(**job)
@@ -187,7 +178,7 @@ async def stream_job_events(job_id: str):
     async def event_generator() -> AsyncGenerator[str, None]:
         sent_count = 0
         while True:
-            job = _jobs.get(job_id)
+            job = job_store.get(job_id)
             if not job:
                 yield f"data: {json.dumps({'error': 'Job not found'})}\n\n"
                 break
@@ -217,7 +208,7 @@ async def stream_job_events(job_id: str):
 @app.get("/jobs/{job_id}/export")
 async def export_document(job_id: str, format: str = "md"):
     """Download the completed document as Markdown or DOCX."""
-    job = _jobs.get(job_id)
+    job = job_store.get(job_id)
     if not job:
         raise HTTPException(404, f"Job {job_id} not found")
     if job["status"] != "done":

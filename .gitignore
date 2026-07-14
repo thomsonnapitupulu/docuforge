@@ -154,6 +154,10 @@ node_modules/
 chroma_db/
 backend/chroma_db/
 
+# SQLite job store
+jobs.db
+backend/jobs.db
+
 # Environments
 .env
 .envrc
