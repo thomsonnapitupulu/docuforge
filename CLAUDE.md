@@ -30,6 +30,7 @@ backend/
 │   ├── main.py          FastAPI app: /ingest, /generate, /jobs/{id}, /jobs/{id}/stream (SSE),
 │   │                    /jobs/{id}/export, /stats, /clear, /health
 │   ├── job_store.py     SQLite-backed job store (JobStore) — survives backend restarts
+│   ├── rate_limit.py    In-memory sliding-window rate limiter (per client IP)
 │   └── schemas.py       Pydantic request/response models
 ├── core/
 │   ├── config.py        Settings via pydantic-settings, reads backend/.env
@@ -79,11 +80,18 @@ Backend tests:
 ```bash
 cd backend
 source venv/bin/activate           # or .venv, whichever this checkout uses
-pytest                             # runs backend/tests/, ~41 tests
+pytest                             # runs backend/tests/, ~47 tests
+ruff check .                       # lint — same check CI runs
 ```
 `backend/tests/conftest.py` points Chroma at a throwaway tmp dir and sets a dummy
 `ANTHROPIC_API_KEY` if one isn't already set, so running tests never touches
 `backend/chroma_db/` or requires a real API key.
+
+CI (`.github/workflows/ci.yml`) runs `ruff check` + `pytest` on every push/PR — no secrets
+required. When writing a test that hits `/ingest` for real, stub out
+`vector_store.upsert_chunks` unless you're specifically testing embedding — Chroma's default
+embedding function downloads an ONNX model on first use, which is fast once cached locally but
+took 60-90+ seconds on a clean CI container and made an unrelated rate-limit test flaky.
 
 ## Known constraints / conventions
 
@@ -101,6 +109,9 @@ pytest                             # runs backend/tests/, ~41 tests
   computed from it — LangGraph's default `recursion_limit` (25 super-steps) is far too low for
   a multi-section run with retries (each section can cost ~10 steps), and a real run hit that
   exact crash this session before the limit was raised.
+- **`/ingest` and `/generate` are rate-limited** per client IP (`api/rate_limit.py`, in-memory,
+  single-instance only — see its docstring). Configurable via `INGEST_RATE_LIMIT_PER_MINUTE`
+  (default 20) and `GENERATE_RATE_LIMIT_PER_MINUTE` (default 5).
 - **Backend test coverage is partial**: `ingestion/parser.py`, `ingestion/chunker.py`, and
   the graph routing functions (`route_after_evaluation`, `route_after_advance`,
   `advance_section`, `route_after_planning`) are covered, plus a full mocked graph invocation

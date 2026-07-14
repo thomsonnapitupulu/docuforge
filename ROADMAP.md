@@ -113,7 +113,24 @@ basic React pages all exist and appear functionally complete for a single-user l
 ## Phase 4 — Productionization
 
 - [ ] Auth (only if/when multi-user access is needed — not required for single-user local use)
-- [ ] Rate limiting on `/ingest` and `/generate`
+- [x] Rate limiting on `/ingest` and `/generate` — `api/rate_limit.py`, a small in-memory
+      sliding-window limiter keyed by client IP (no new service/dependency — single-instance
+      only, documented as such). Configurable via `INGEST_RATE_LIMIT_PER_MINUTE` (default 20)
+      and `GENERATE_RATE_LIMIT_PER_MINUTE` (default 5). Verified live against a real running
+      backend: 5 real `/ingest` requests with a limit of 3/min → first 3 returned 200, 4th and
+      5th correctly returned 429.
 - [ ] Deployment config (Dockerfile / docker-compose for backend + Chroma persistence volume)
-- [ ] CI (lint + backend test suite from Phase 1)
+- [x] CI (lint + backend test suite from Phase 1) — `.github/workflows/ci.yml` runs `ruff
+      check` + `pytest` on push/PR. Added `backend/ruff.toml` (default E/F rules, E501
+      ignored — it only flagged long prompt templates, not bugs). Fixed the 8 real issues ruff
+      found (all trivial unused-import cleanups). Verified for real via `act` running the exact
+      workflow in a clean Docker container (not just "should work") — this caught a genuine
+      test-isolation bug (see below), fixed, re-verified clean.
+- [ ] **Newly discovered (while verifying CI)**: on a cold environment, the very first
+      `/ingest` call takes 60-90+ seconds because Chroma's default embedding function downloads
+      an ONNX model on first use. This was invisible in local dev (model already cached on this
+      machine from earlier sessions) but showed up immediately in a clean CI container. Worth
+      either warming up the embedding model at backend startup, or documenting the expected
+      cold-start latency for fresh deployments — otherwise a fresh production deploy's first
+      real user request could look like a hang or a timeout.
 - [ ] Secrets management guidance beyond local `.env` (e.g. for a hosted deployment)
