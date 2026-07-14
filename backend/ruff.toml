@@ -1,0 +1,10 @@
+target-version = "py312"
+line-length = 120
+
+[lint]
+# Defaults (E, F) catch real bugs (unused imports/vars, undefined names) without
+# forcing a large unrelated style rewrite across the existing codebase.
+select = ["E", "F"]
+# Long prompt templates and f-strings (core/prompts.py, graph/nodes.py) are more
+# readable as single lines than wrapped — not a real bug, so don't flag length.
+ignore = ["E501"]

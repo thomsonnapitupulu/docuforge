@@ -67,6 +67,12 @@ def test_ingest_endpoint_returns_429_once_rate_limit_exceeded(monkeypatch):
     from api import main as main_module
 
     monkeypatch.setattr(main_module, "ingest_limiter", RateLimiter(max_requests=1, window_seconds=60))
+    # Real ingestion calls Chroma's default embedding function, which downloads
+    # an ONNX model on first use — 60-90s+ on a cold environment (seen live in
+    # CI). That's unrelated to what this test checks, and slow enough to bust
+    # the 60s rate-limit window itself, making the test flaky. Stub it out so
+    # this test is fast and deterministic regardless of environment.
+    monkeypatch.setattr(main_module.vector_store, "upsert_chunks", lambda chunks: None)
 
     client = TestClient(main_module.app)
     files = {"file": ("doc.txt", b"hello world reference content", "text/plain")}

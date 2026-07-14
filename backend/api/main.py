@@ -23,7 +23,7 @@ from fastapi.responses import StreamingResponse, Response
 from api.job_store import JobStore
 from api.rate_limit import RateLimiter, client_key
 from api.schemas import (
-    ArtifactType, GenerateRequest, GenerateResponse,
+    GenerateRequest, GenerateResponse,
     JobStatusResponse, IngestionResponse, StatsResponse
 )
 from core.config import get_settings

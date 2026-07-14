@@ -14,8 +14,7 @@ Handles:
 import io
 import re
 from docx import Document
-from docx.shared import Pt, RGBColor, Inches
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.shared import Pt
 import structlog
 
 logger = structlog.get_logger()

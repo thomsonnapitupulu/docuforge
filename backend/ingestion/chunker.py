@@ -21,7 +21,7 @@ Metadata schema per chunk:
 
 import re
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 from utils.logger import get_logger
 

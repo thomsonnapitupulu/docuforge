@@ -26,5 +26,6 @@ structlog==24.4.0
 tenacity==8.5.0
 tiktoken==0.7.0
 
-# Testing
+# Testing & linting
 pytest==8.3.3
+ruff==0.7.0
