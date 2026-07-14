@@ -43,18 +43,14 @@ backend/
 │   │                     evaluate_section -> advance_section -> compile_document
 │   └── builder.py         Assembles the LangGraph StateGraph with retry/advance routing
 └── utils/
-    └── exporter.py       Markdown -> DOCX conversion
+    ├── exporter.py       Markdown -> DOCX conversion
+    └── logger.py         Shared structlog config (configure_logging/get_logger)
 
 frontend/src/
 ├── pages/UploadPage.jsx, GeneratePage.jsx, PreviewPage.jsx
 ├── lib/api.js            Backend API client
 └── App.jsx, main.jsx
 ```
-
-Note: the original README's tree mentions `backend/utils/logger.py` — this file does not
-currently exist (only `exporter.py` is under `utils/`). Structured logging today is done
-inline via `structlog` in `api/main.py` and `graph/nodes.py`. Don't assume `logger.py` exists;
-check before importing from it.
 
 ## Running locally
 

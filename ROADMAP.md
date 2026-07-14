@@ -15,16 +15,16 @@ basic React pages all exist and appear functionally complete for a single-user l
       `backend/graph/`
 - [x] FastAPI routes for ingest/generate/status/stream/export — `backend/api/main.py`
 - [x] React pages for upload/generate/preview — `frontend/src/pages/`
-- [ ] Reconcile `README.md`'s documented file tree with reality (it lists
-      `backend/utils/logger.py`, which doesn't exist — either build it in Phase 1 or update
-      the README to not reference it)
-- [ ] Commit the currently-pending `backend/requirements.txt` change
+- [x] Reconcile `README.md`'s documented file tree with reality (`backend/utils/logger.py`
+      now exists — built in Phase 1, see below)
+- [x] Commit the currently-pending `backend/requirements.txt` change
 - [x] Confirm `.gitignore` excludes `chroma_db/`, `node_modules/`, `.env` (done this session)
 
 ## Phase 1 — Hardening the core loop
 
-- [ ] Implement `backend/utils/logger.py` (structured logging setup) and wire it into
-      `api/main.py` / `graph/nodes.py` instead of ad-hoc `structlog.get_logger()` calls
+- [x] Implement `backend/utils/logger.py` (structured logging setup) and wire it into
+      `api/main.py`, `graph/nodes.py`, and `ingestion/*.py` instead of ad-hoc
+      `structlog.get_logger()` calls — verified live via a real `/ingest` request
 - [ ] Add backend tests: `ingestion/parser.py`, `ingestion/chunker.py`, and the conditional
       routing logic in `graph/builder.py` (`route_after_evaluation`, `route_after_advance`)
 - [ ] Add basic error surfacing in the frontend (currently unverified how `GeneratePage.jsx`
