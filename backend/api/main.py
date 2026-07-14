@@ -123,6 +123,23 @@ async def generate_document(request: GenerateRequest, background_tasks: Backgrou
     )
 
 
+def _run_graph_with_cancellation(job_id: str, initial_state: dict) -> dict:
+    """
+    Runs the graph step-by-step (instead of a single blocking .invoke()) so we
+    can cooperatively check for a cancellation request between node executions.
+    A synchronous LangGraph invoke() can't be interrupted mid-flight without
+    killing the thread, so cancellation takes effect at the next node boundary,
+    not instantly.
+    """
+    final_state = initial_state
+    for state in generation_graph.stream(initial_state, stream_mode="values"):
+        final_state = state
+        current_job = job_store.get(job_id)
+        if current_job and current_job["status"] == "cancelling":
+            return {**final_state, "status": "cancelled", "error": "Cancelled by user"}
+    return final_state
+
+
 async def _run_generation(job_id: str, artifact_type: str):
     """Background task: runs the LangGraph pipeline and updates job store."""
     try:
@@ -132,7 +149,7 @@ async def _run_generation(job_id: str, artifact_type: str):
         loop = asyncio.get_event_loop()
         final_state = await loop.run_in_executor(
             None,
-            lambda: generation_graph.invoke(initial_state)
+            lambda: _run_graph_with_cancellation(job_id, initial_state)
         )
 
         toc = final_state.get("toc", [])
@@ -154,6 +171,21 @@ async def _run_generation(job_id: str, artifact_type: str):
     except Exception as e:
         logger.error("generation_error", job_id=job_id, error=str(e))
         job_store.update(job_id, status="error", error=str(e))
+
+
+@app.post("/jobs/{job_id}/cancel", response_model=JobStatusResponse)
+async def cancel_job(job_id: str):
+    """Request cancellation of an in-flight generation job. Takes effect at
+    the next node boundary in the graph, not instantly."""
+    job = job_store.get(job_id)
+    if not job:
+        raise HTTPException(404, f"Job {job_id} not found")
+    if job["status"] != "running":
+        raise HTTPException(400, f"Job is not running (status: {job['status']}) — nothing to cancel")
+
+    job_store.update(job_id, status="cancelling")
+    logger.info("job_cancel_requested", job_id=job_id)
+    return JobStatusResponse(**job_store.get(job_id))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -192,7 +224,7 @@ async def stream_job_events(job_id: str):
             # Send progress
             yield f"data: {json.dumps({'status': job['status'], 'sections_complete': job['sections_complete'], 'total_sections': job['total_sections']})}\n\n"
 
-            if job["status"] in ("done", "error"):
+            if job["status"] in ("done", "error", "cancelled"):
                 yield f"data: {json.dumps({'done': True, 'status': job['status']})}\n\n"
                 break
 

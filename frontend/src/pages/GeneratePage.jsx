@@ -28,6 +28,8 @@ export default function GeneratePage({ artifactType, setArtifactType, onComplete
   const [status, setStatus] = useState(null);
   const [error, setError] = useState(null);
   const [running, setRunning] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelledNotice, setCancelledNotice] = useState(false);
   const logRef = useRef(null);
   const esRef = useRef(null);
 
@@ -42,6 +44,8 @@ export default function GeneratePage({ artifactType, setArtifactType, onComplete
     setEvents([]);
     setError(null);
     setStatus(null);
+    setCancelling(false);
+    setCancelledNotice(false);
 
     try {
       const { job_id } = await api.generate(artifactType);
@@ -50,6 +54,19 @@ export default function GeneratePage({ artifactType, setArtifactType, onComplete
     } catch (err) {
       setError(err.message);
       setRunning(false);
+    }
+  };
+
+  const cancelGeneration = async () => {
+    if (!jobId || cancelling) return;
+    setCancelling(true);
+    try {
+      await api.cancelJob(jobId);
+      // Job store now shows "cancelling" — the SSE stream will report the
+      // final "cancelled" status once the graph reaches its next node boundary.
+    } catch (err) {
+      setCancelling(false);
+      setError(err.message);
     }
   };
 
@@ -80,6 +97,7 @@ export default function GeneratePage({ artifactType, setArtifactType, onComplete
       if (data.done) {
         es.close();
         setRunning(false);
+        setCancelling(false);
         if (data.status === "done") {
           // Fetch final document
           api.getJob(id).then(job => {
@@ -92,6 +110,10 @@ export default function GeneratePage({ artifactType, setArtifactType, onComplete
         if (data.status === "error") {
           setStatus(null);
           setError("Generation failed. Check backend logs.");
+        }
+        if (data.status === "cancelled") {
+          setStatus(null);
+          setCancelledNotice(true);
         }
       }
     };
@@ -150,10 +172,19 @@ export default function GeneratePage({ artifactType, setArtifactType, onComplete
           <div className="flex items-center justify-between">
             <p className="text-xs text-slate-500 uppercase tracking-wider">Generation Log</p>
             {running && (
-              <span className="flex items-center gap-1.5 text-xs text-violet-400">
-                <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse"></span>
-                Running…
-              </span>
+              <div className="flex items-center gap-3">
+                <span className="flex items-center gap-1.5 text-xs text-violet-400">
+                  <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse"></span>
+                  {cancelling ? "Cancelling…" : "Running…"}
+                </span>
+                <button
+                  onClick={cancelGeneration}
+                  disabled={cancelling}
+                  className="px-2 py-0.5 text-xs border border-slate-700 rounded hover:border-red-700 hover:text-red-400 disabled:opacity-50 text-slate-400 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
             )}
           </div>
           <div
@@ -165,6 +196,19 @@ export default function GeneratePage({ artifactType, setArtifactType, onComplete
             ))}
             {running && <p className="text-slate-600 animate-pulse">▋</p>}
           </div>
+        </div>
+      )}
+
+      {/* Cancelled */}
+      {cancelledNotice && !error && (
+        <div className="bg-slate-900 border border-slate-700 rounded px-4 py-3 text-slate-400 text-sm flex items-center justify-between gap-4">
+          <span>Generation cancelled.</span>
+          <button
+            onClick={startGeneration}
+            className="shrink-0 px-3 py-1 text-xs border border-slate-600 rounded hover:bg-slate-800 transition-colors"
+          >
+            Start over
+          </button>
         </div>
       )}
 
