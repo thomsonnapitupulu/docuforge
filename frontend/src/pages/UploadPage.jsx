@@ -39,9 +39,15 @@ export default function UploadPage({ onComplete }) {
     }
 
     setResults(newResults);
-    const statsData = await api.getStats();
-    setStats(statsData);
-    setUploading(false);
+    try {
+      const statsData = await api.getStats();
+      setStats(statsData);
+    } catch {
+      // Non-fatal: ingestion itself already succeeded/failed per-file above,
+      // this only affects the stats tiles. Don't leave "Indexing…" stuck.
+    } finally {
+      setUploading(false);
+    }
   };
 
   const allIngested = results.length > 0 && results.every(r => r.ok);

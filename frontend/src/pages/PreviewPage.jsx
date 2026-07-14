@@ -3,20 +3,50 @@ import { api } from "../lib/api";
 
 export default function PreviewPage({ jobId, document, artifactType, onReset }) {
   const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState(null);
+  const [downloading, setDownloading] = useState(null); // "md" | "docx" | null
+  const [downloadError, setDownloadError] = useState(null);
 
   const copyToClipboard = async () => {
-    await navigator.clipboard.writeText(document || "");
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(document || "");
+      setCopyError(null);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopyError("Couldn't copy — your browser may have blocked clipboard access.");
+    }
   };
 
-  const downloadMd = () => {
-    window.open(api.exportUrl(jobId, "md"), "_blank");
+  const download = async (format) => {
+    setDownloading(format);
+    setDownloadError(null);
+    try {
+      const res = await fetch(api.exportUrl(jobId, format));
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.detail || `Export failed (${res.status})`);
+      }
+      const blob = await res.blob();
+      const disposition = res.headers.get("Content-Disposition") || "";
+      const match = disposition.match(/filename="?([^"]+)"?/);
+      const filename = match ? match[1] : `${artifactType}.${format}`;
+
+      const url = URL.createObjectURL(blob);
+      const link = window.document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setDownloadError(err.message);
+    } finally {
+      setDownloading(null);
+    }
   };
 
-  const downloadDocx = () => {
-    window.open(api.exportUrl(jobId, "docx"), "_blank");
-  };
+  const downloadMd = () => download("md");
+  const downloadDocx = () => download("docx");
 
   // Very basic markdown renderer — render headers and code blocks
   const renderPreview = (md) => {
@@ -62,18 +92,27 @@ export default function PreviewPage({ jobId, document, artifactType, onReset }) 
           </button>
           <button
             onClick={downloadMd}
-            className="px-3 py-1.5 text-xs bg-slate-800 hover:bg-slate-700 rounded text-slate-200 transition-colors"
+            disabled={downloading !== null}
+            className="px-3 py-1.5 text-xs bg-slate-800 hover:bg-slate-700 disabled:opacity-50 rounded text-slate-200 transition-colors"
           >
-            ↓ .md
+            {downloading === "md" ? "Downloading…" : "↓ .md"}
           </button>
           <button
             onClick={downloadDocx}
-            className="px-3 py-1.5 text-xs bg-violet-700 hover:bg-violet-600 rounded text-white transition-colors"
+            disabled={downloading !== null}
+            className="px-3 py-1.5 text-xs bg-violet-700 hover:bg-violet-600 disabled:opacity-50 rounded text-white transition-colors"
           >
-            ↓ .docx
+            {downloading === "docx" ? "Downloading…" : "↓ .docx"}
           </button>
         </div>
       </div>
+
+      {/* Copy / download errors */}
+      {(copyError || downloadError) && (
+        <div className="bg-red-950/40 border border-red-800 rounded px-4 py-3 text-red-400 text-sm">
+          {copyError || downloadError}
+        </div>
+      )}
 
       {/* Document preview */}
       <div className="bg-slate-900 border border-slate-800 rounded-lg p-8 max-h-[65vh] overflow-y-auto">
