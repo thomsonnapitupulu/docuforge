@@ -12,12 +12,12 @@ Retrieval strategy (Parent-Child RAG):
 
 import chromadb
 from chromadb.config import Settings as ChromaSettings
-import structlog
+from utils.logger import get_logger
 
 from ingestion.chunker import Chunk
 from core.config import get_settings
 
-logger = structlog.get_logger()
+logger = get_logger(__name__)
 settings = get_settings()
 
 

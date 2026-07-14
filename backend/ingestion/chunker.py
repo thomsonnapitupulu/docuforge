@@ -23,9 +23,9 @@ import re
 import uuid
 from dataclasses import dataclass, field
 from typing import Optional
-import structlog
+from utils.logger import get_logger
 
-logger = structlog.get_logger()
+logger = get_logger(__name__)
 
 # Rough token-to-char ratio (1 token ≈ 4 chars in English)
 CHARS_PER_TOKEN = 4

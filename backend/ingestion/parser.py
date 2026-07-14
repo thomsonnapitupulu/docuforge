@@ -7,9 +7,9 @@ import io
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
-import structlog
+from utils.logger import get_logger
 
-logger = structlog.get_logger()
+logger = get_logger(__name__)
 
 
 @dataclass

@@ -9,7 +9,7 @@ Node sequence:
 """
 
 import json
-import structlog
+from utils.logger import get_logger
 
 import anthropic
 
@@ -25,7 +25,7 @@ from core.prompts import (
 from graph.state import GenerationState, SectionPlan, SectionDraft
 from ingestion.embedder import VectorStoreManager
 
-logger = structlog.get_logger()
+logger = get_logger(__name__)
 settings = get_settings()
 
 _client = anthropic.Anthropic(api_key=settings.anthropic_api_key)

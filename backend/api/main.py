@@ -19,7 +19,6 @@ from typing import AsyncGenerator
 from fastapi import FastAPI, File, UploadFile, BackgroundTasks, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, Response
-import structlog
 
 from api.schemas import (
     ArtifactType, GenerateRequest, GenerateResponse,
@@ -32,8 +31,10 @@ from ingestion.embedder import VectorStoreManager
 from graph.builder import generation_graph
 from graph.state import GenerationState
 from utils.exporter import markdown_to_docx
+from utils.logger import configure_logging, get_logger
 
-logger = structlog.get_logger()
+configure_logging()
+logger = get_logger(__name__)
 settings = get_settings()
 
 app = FastAPI(
