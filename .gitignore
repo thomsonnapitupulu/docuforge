@@ -147,6 +147,13 @@ activemq-data/
 # SageMath parsed files
 *.sage.py
 
+# Node
+node_modules/
+
+# ChromaDB local vector store
+chroma_db/
+backend/chroma_db/
+
 # Environments
 .env
 .envrc
