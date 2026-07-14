@@ -12,6 +12,7 @@ import json
 from utils.logger import get_logger
 
 import anthropic
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from core.config import get_settings
 from core.prompts import (
@@ -32,8 +33,35 @@ _client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
 _vector_store = VectorStoreManager()
 
 
+# Only retry on transient failures — connection issues, timeouts, rate limits, and 5xx
+# server errors. Never retry AuthenticationError/BadRequestError/etc.: those will fail
+# identically every time and just burn attempts and latency.
+_RETRYABLE_ANTHROPIC_ERRORS = (
+    anthropic.APIConnectionError,
+    anthropic.APITimeoutError,
+    anthropic.RateLimitError,
+    anthropic.InternalServerError,
+)
+
+
+def _log_before_sleep(retry_state) -> None:
+    logger.warning(
+        "llm_call_retrying",
+        attempt=retry_state.attempt_number,
+        error=str(retry_state.outcome.exception()),
+    )
+
+
+@retry(
+    retry=retry_if_exception_type(_RETRYABLE_ANTHROPIC_ERRORS),
+    stop=stop_after_attempt(4),
+    wait=wait_exponential(multiplier=1, min=2, max=20),
+    before_sleep=_log_before_sleep,
+    reraise=True,
+)
 def _llm(prompt: str, max_tokens: int = 4096) -> str:
-    """Thin wrapper around Anthropic claude-sonnet-4-6."""
+    """Thin wrapper around Anthropic claude-sonnet-4-6, with retry/backoff on
+    transient API failures (connection errors, timeouts, rate limits, 5xx)."""
     response = _client.messages.create(
         model=settings.model_name,
         max_tokens=max_tokens,
