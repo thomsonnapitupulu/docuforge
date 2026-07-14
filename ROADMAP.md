@@ -28,9 +28,22 @@ basic React pages all exist and appear functionally complete for a single-user l
 - [x] Add backend tests: `ingestion/parser.py`, `ingestion/chunker.py`, and the conditional
       routing logic (`route_after_evaluation`, `route_after_advance`, `advance_section`) —
       `backend/tests/`, run with `pytest` from `backend/` (venv active). 20 tests passing.
-- [ ] Add basic error surfacing in the frontend (currently unverified how `GeneratePage.jsx`
-      handles a failed job or a dropped SSE stream)
-- [ ] Manually verify the `/jobs/{id}/stream` SSE flow end-to-end against a live backend
+- [x] Add basic error surfacing in the frontend — `GeneratePage.jsx` now uses `api.streamJob()`
+      (was hardcoding `localhost:8000`, bypassing `VITE_API_URL`), surfaces the backend's
+      `{"error": ...}` SSE payload (previously silently ignored), and has a "Try again" action
+      instead of requiring a page reload
+- [x] Manually verify the `/jobs/{id}/stream` SSE flow end-to-end against a live backend —
+      done via Playwright driving the real UI through upload → generate; also caught a real
+      backend failure live (see new item below), confirming the error path works against a
+      genuine failure, not just a simulated one
+- [ ] **Newly discovered**: `graph/builder.py` has no conditional routing after `plan_document`
+      to handle TOC-parsing failures — when the LLM's TOC JSON is truncated or malformed
+      (observed live: `max_tokens=2000` was too low for a full section list, producing
+      "Unterminated string" `json.JSONDecodeError`), the graph unconditionally proceeds to
+      `retrieve_context` against an empty/error `toc`, crashing instead of ending in a clean
+      `"status": "error"` state. Fix: either raise `plan_document`'s `max_tokens`, or add a
+      conditional edge from `plan_document` straight to `END`/`compile_document` when
+      `state["error"]` is set.
 
 ## Phase 2 — Persistence & reliability
 
