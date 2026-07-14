@@ -79,7 +79,7 @@ Backend tests:
 ```bash
 cd backend
 source venv/bin/activate           # or .venv, whichever this checkout uses
-pytest                             # runs backend/tests/, ~39 tests
+pytest                             # runs backend/tests/, ~41 tests
 ```
 `backend/tests/conftest.py` points Chroma at a throwaway tmp dir and sets a dummy
 `ANTHROPIC_API_KEY` if one isn't already set, so running tests never touches
@@ -95,6 +95,12 @@ pytest                             # runs backend/tests/, ~39 tests
 - **LLM calls retry on transient failures**: `graph/nodes.py`'s `_llm()` wraps every Anthropic
   call with `tenacity`, retrying connection errors/timeouts/rate-limits/5xx with exponential
   backoff (up to 4 attempts). Non-transient errors (auth, bad request) are never retried.
+- **`PLANNING_PROMPT`'s TOC size is capped at 15 entries** (≤2 subsections per top-level
+  section) — without this, real runs produced 30-40 sections for a tiny test doc. If you
+  change this cap, also update `GENERATION_RECURSION_LIMIT` in `api/main.py`, which is
+  computed from it — LangGraph's default `recursion_limit` (25 super-steps) is far too low for
+  a multi-section run with retries (each section can cost ~10 steps), and a real run hit that
+  exact crash this session before the limit was raised.
 - **Backend test coverage is partial**: `ingestion/parser.py`, `ingestion/chunker.py`, and
   the graph routing functions (`route_after_evaluation`, `route_after_advance`,
   `advance_section`, `route_after_planning`) are covered, plus a full mocked graph invocation

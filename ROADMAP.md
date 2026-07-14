@@ -81,13 +81,34 @@ basic React pages all exist and appear functionally complete for a single-user l
       by anchoring to `/lib/`, `/lib64/` and adding the directory to version control. Audited
       the rest of `.gitignore` via `git status --ignored` — no other project source files are
       unexpectedly excluded (only `.claude/`, which is intentional).
+- [x] **Newly discovered (while verifying Phase 3)**: LangGraph's default `recursion_limit`
+      (25 super-steps) was far too low for even the now-bounded 12-15 section TOC — each
+      section can take ~10 steps in the worst case (retrieve + draft/evaluate per retry +
+      advance), so a real 12-section run crashed with "Recursion limit of 25 reached." Added
+      `GENERATION_RECURSION_LIMIT` in `api/main.py`, computed from the same constants
+      `PLANNING_PROMPT` enforces. Regression tests in `test_recursion_limit.py` prove the bug
+      at small scale (3 sections forced through max retries) and that the fix resolves it.
+      Verified live: a real 12-section generation completed end-to-end for the first time all
+      session — see Phase 3 below.
 
 ## Phase 3 — Frontend completeness
 
-- [ ] Verify the full Upload → Generate → Preview flow against a running backend in a browser
-- [ ] Add loading/error states across all three pages
-- [ ] Polish export UX (`/jobs/{id}/export?format=docx|md`) — confirm download behavior and
-      filename handling in `PreviewPage.jsx`
+- [x] Verify the full Upload → Generate → Preview flow against a running backend in a browser
+      — done via Playwright driving the real UI through a complete real generation (12
+      sections, ~8 min, real Anthropic API calls) all the way to a rendered 47k-character BRD
+      on the Preview page. This surfaced and led to fixing the recursion-limit bug above.
+- [x] Add loading/error states across all three pages — `UploadPage.jsx`'s `api.getStats()`
+      call was unguarded; if it threw, `setUploading(false)` never ran, leaving the UI stuck on
+      "Indexing…" forever even after ingestion itself had already succeeded/failed. Wrapped in
+      try/finally. `PreviewPage.jsx` had no error handling at all for clipboard or download
+      failures — added both (see item below).
+- [x] Polish export UX (`/jobs/{id}/export?format=docx|md`) — `PreviewPage.jsx` used
+      `window.open()` directly, so a failed export (backend down, job not done) silently opened
+      a blank tab with no feedback. Switched to fetch+blob downloads with proper error
+      surfacing, per-button loading state, and filenames read from the real
+      `Content-Disposition` header. Verified live: real Copy Markdown / .md / .docx downloads
+      all worked with correct filenames, and a deliberately-aborted export request correctly
+      showed an in-app "Failed to fetch" banner instead of a silent broken tab.
 
 ## Phase 4 — Productionization
 
