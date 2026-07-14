@@ -15,12 +15,18 @@ Below is a summary of the available reference documents:
 {reference_summary}
 </reference_summary>
 
-Your task: Generate a detailed, structured Table of Contents (TOC) for a {artifact_type}.
+Your task: Generate a right-sized, structured Table of Contents (TOC) for a {artifact_type}.
 
 Rules:
 - Output ONLY a valid JSON array. No prose, no markdown fences.
 - Each entry must have: "section_id" (e.g. "3.2"), "title", "description" (one sentence), "target_artifact_filter" (for vector DB metadata filtering)
 - Depth: top-level sections (1, 2, 3...) and subsections (1.1, 1.2...) only. No deeper nesting.
+- Size limit: the TOC must have AT MOST 15 entries total (top-level sections + subsections
+  combined), and never more than 2 subsections under any single top-level section. Each
+  section is drafted with its own LLM call, so an oversized TOC wastes time and cost without
+  adding value — stay as close to the required section list below as the material allows.
+- Only add a subsection when the reference material actually contains enough distinct content
+  to justify splitting a topic. Otherwise keep it as a single top-level section.
 - Tailor the sections precisely for {artifact_type}:
 
 {artifact_guidance}
