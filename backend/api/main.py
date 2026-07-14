@@ -123,6 +123,19 @@ async def generate_document(request: GenerateRequest, background_tasks: Backgrou
     )
 
 
+# LangGraph's default recursion_limit (25 super-steps) counts every node
+# execution, not just sections — each section can take up to
+# retrieve_context + (draft + evaluate) per attempt (1 initial + N retries) +
+# advance_section. With PLANNING_PROMPT capped at 15 TOC entries (see
+# core/prompts.py), the worst case is well above the default limit, so a
+# real multi-section run reliably hit "Recursion limit ... reached" before
+# this was added. Size the limit generously off the same constants instead
+# of guessing a bigger fixed number.
+_MAX_TOC_SECTIONS = 15  # keep in sync with PLANNING_PROMPT's size limit
+_STEPS_PER_SECTION = 2 * (settings.max_retries_per_section + 1) + 2
+GENERATION_RECURSION_LIMIT = _MAX_TOC_SECTIONS * _STEPS_PER_SECTION + 10  # + plan/compile buffer
+
+
 def _run_graph_with_cancellation(job_id: str, initial_state: dict) -> dict:
     """
     Runs the graph step-by-step (instead of a single blocking .invoke()) so we
@@ -132,7 +145,12 @@ def _run_graph_with_cancellation(job_id: str, initial_state: dict) -> dict:
     not instantly.
     """
     final_state = initial_state
-    for state in generation_graph.stream(initial_state, stream_mode="values"):
+    stream = generation_graph.stream(
+        initial_state,
+        stream_mode="values",
+        config={"recursion_limit": GENERATION_RECURSION_LIMIT},
+    )
+    for state in stream:
         final_state = state
         current_job = job_store.get(job_id)
         if current_job and current_job["status"] == "cancelling":

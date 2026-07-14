@@ -33,7 +33,7 @@ def test_run_graph_with_cancellation_stops_at_next_node_boundary(monkeypatch):
     'cancelling' (as the /cancel endpoint does), the graph stream must stop
     consuming further steps and return a 'cancelled' final state."""
 
-    def fake_stream(initial_state, stream_mode="values"):
+    def fake_stream(initial_state, stream_mode="values", config=None):
         yield {"step": 1}
         yield {"step": 2}
         yield {"step": 3}  # must never be reached
@@ -64,7 +64,7 @@ def test_run_graph_with_cancellation_stops_at_next_node_boundary(monkeypatch):
 
 
 def test_run_graph_with_cancellation_runs_to_completion_when_never_cancelled(monkeypatch):
-    def fake_stream(initial_state, stream_mode="values"):
+    def fake_stream(initial_state, stream_mode="values", config=None):
         yield {"step": 1}
         yield {"step": 2, "status": "done"}
 
