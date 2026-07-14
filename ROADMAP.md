@@ -54,8 +54,10 @@ basic React pages all exist and appear functionally complete for a single-user l
 
 ## Phase 2 — Persistence & reliability
 
-- [ ] Replace the in-memory `_jobs` dict in `api/main.py` with durable storage (SQLite is
-      the simplest fit for a single-instance deployment; Redis if concurrent workers are needed)
+- [x] Replace the in-memory `_jobs` dict in `api/main.py` with durable storage — added
+      `backend/api/job_store.py` (stdlib `sqlite3`, no new dependency/service). Verified live:
+      killed the backend mid-generation and restarted it; the job's status was still there
+      instead of 404 Job not found. 6 new tests in `backend/tests/test_job_store.py`.
 - [ ] Add retry/backoff around Anthropic API calls in `graph/nodes.py` (`_llm` helper)
 - [ ] Add job cancellation (currently no way to stop an in-flight `/generate` job)
 - [ ] **Newly observed**: `PLANNING_PROMPT` (`core/prompts.py`) produced a 30-section TOC for

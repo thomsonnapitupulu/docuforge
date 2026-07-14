@@ -29,6 +29,7 @@ backend/
 ├── api/
 │   ├── main.py          FastAPI app: /ingest, /generate, /jobs/{id}, /jobs/{id}/stream (SSE),
 │   │                    /jobs/{id}/export, /stats, /clear, /health
+│   ├── job_store.py     SQLite-backed job store (JobStore) — survives backend restarts
 │   └── schemas.py       Pydantic request/response models
 ├── core/
 │   ├── config.py        Settings via pydantic-settings, reads backend/.env
@@ -78,7 +79,7 @@ Backend tests:
 ```bash
 cd backend
 source venv/bin/activate           # or .venv, whichever this checkout uses
-pytest                             # runs backend/tests/, ~25 tests
+pytest                             # runs backend/tests/, ~31 tests
 ```
 `backend/tests/conftest.py` points Chroma at a throwaway tmp dir and sets a dummy
 `ANTHROPIC_API_KEY` if one isn't already set, so running tests never touches
@@ -86,9 +87,10 @@ pytest                             # runs backend/tests/, ~25 tests
 
 ## Known constraints / conventions
 
-- **Job store is in-memory** (`_jobs` dict in `api/main.py`) — restarting the backend loses
-  all job state. Don't treat job history as durable until this is replaced (tracked in
-  `ROADMAP.md` Phase 2).
+- **Job store is SQLite** (`api/job_store.py`, path configurable via `JOB_DB_PATH`, default
+  `./jobs.db`) — job state now survives backend restarts. It's gitignored like `chroma_db/`;
+  never hand-edit or commit it. Job cancellation and LLM-call retry/backoff are still open
+  (`ROADMAP.md` Phase 2).
 - **Backend test coverage is partial**: `ingestion/parser.py`, `ingestion/chunker.py`, and
   the graph routing functions (`route_after_evaluation`, `route_after_advance`,
   `advance_section`, `route_after_planning`) are covered, plus a full mocked graph invocation
