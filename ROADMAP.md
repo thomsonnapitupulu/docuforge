@@ -58,12 +58,30 @@ basic React pages all exist and appear functionally complete for a single-user l
       `backend/api/job_store.py` (stdlib `sqlite3`, no new dependency/service). Verified live:
       killed the backend mid-generation and restarted it; the job's status was still there
       instead of 404 Job not found. 6 new tests in `backend/tests/test_job_store.py`.
-- [ ] Add retry/backoff around Anthropic API calls in `graph/nodes.py` (`_llm` helper)
-- [ ] Add job cancellation (currently no way to stop an in-flight `/generate` job)
-- [ ] **Newly observed**: `PLANNING_PROMPT` (`core/prompts.py`) produced a 30-section TOC for
-      a single small BRD test doc — each section costs 1-3 LLM round trips (draft + critique +
-      retries), so a real run can take 15-20+ minutes and a lot of API spend. Worth tuning the
-      prompt to bound section count relative to reference doc size/complexity.
+- [x] Add retry/backoff around Anthropic API calls — `graph/nodes.py`'s `_llm()` now wrapped
+      with `tenacity` (already an unused dependency, no new package), retrying only transient
+      errors (connection/timeout/rate-limit/5xx) with exponential backoff, up to 4 attempts.
+      Verified live: injected transient failures into every LLM call in a full graph run — all
+      transparently retried, pipeline still completed. 3 new tests in `test_llm_retry.py`.
+- [x] Add job cancellation — `POST /jobs/{job_id}/cancel` + cooperative cancellation in
+      `_run_generation` (switched `.invoke()` → `.stream(..., stream_mode="values")`, checking
+      job status after each node). Frontend `GeneratePage.jsx` has a Cancel button while running.
+      Verified live: cancelled a real 40-section run while `plan_document`'s LLM call was still
+      in flight — stopped cleanly at `status=cancelled` right after that node, before any
+      section drafting began. 5 new tests in `test_job_cancellation.py`.
+- [ ] **Newly observed**: `PLANNING_PROMPT` (`core/prompts.py`) produced a 30-40 section TOC
+      for a single small BRD test doc (seen twice now) — each section costs 1-3 LLM round trips
+      (draft + critique + retries), so a real run can take 15-20+ minutes and a lot of API
+      spend. Worth tuning the prompt to bound section count relative to reference doc size/
+      complexity. (Job cancellation above makes this less costly to hit, but doesn't fix the
+      root over-generation behavior.)
+- [ ] **Newly discovered**: `.gitignore` had a bare `lib/` rule (meant for Python's root-level
+      `lib/`/`lib64/` packaging dirs) that, with no leading slash, matched `lib/` at ANY depth —
+      silently excluding `frontend/src/lib/api.js` from git entirely, since the very first
+      commit. Fixed by anchoring to `/lib/`, `/lib64/` and adding the directory to version
+      control. Worth double-checking no other files were silently excluded by an overly broad
+      pattern in this `.gitignore` (it's a large, likely-templated file with rules for many
+      ecosystems this project doesn't use).
 
 ## Phase 3 — Frontend completeness
 

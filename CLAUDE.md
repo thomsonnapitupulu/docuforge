@@ -79,7 +79,7 @@ Backend tests:
 ```bash
 cd backend
 source venv/bin/activate           # or .venv, whichever this checkout uses
-pytest                             # runs backend/tests/, ~31 tests
+pytest                             # runs backend/tests/, ~39 tests
 ```
 `backend/tests/conftest.py` points Chroma at a throwaway tmp dir and sets a dummy
 `ANTHROPIC_API_KEY` if one isn't already set, so running tests never touches
@@ -89,8 +89,12 @@ pytest                             # runs backend/tests/, ~31 tests
 
 - **Job store is SQLite** (`api/job_store.py`, path configurable via `JOB_DB_PATH`, default
   `./jobs.db`) — job state now survives backend restarts. It's gitignored like `chroma_db/`;
-  never hand-edit or commit it. Job cancellation and LLM-call retry/backoff are still open
-  (`ROADMAP.md` Phase 2).
+  never hand-edit or commit it. A running job can be stopped via
+  `POST /jobs/{job_id}/cancel` — cancellation is cooperative and takes effect at the next
+  LangGraph node boundary, not instantly (see `_run_graph_with_cancellation` in `api/main.py`).
+- **LLM calls retry on transient failures**: `graph/nodes.py`'s `_llm()` wraps every Anthropic
+  call with `tenacity`, retrying connection errors/timeouts/rate-limits/5xx with exponential
+  backoff (up to 4 attempts). Non-transient errors (auth, bad request) are never retried.
 - **Backend test coverage is partial**: `ingestion/parser.py`, `ingestion/chunker.py`, and
   the graph routing functions (`route_after_evaluation`, `route_after_advance`,
   `advance_section`, `route_after_planning`) are covered, plus a full mocked graph invocation
@@ -107,4 +111,9 @@ pytest                             # runs backend/tests/, ~31 tests
   hand-edit or commit it.
 - **`.env`** holds `ANTHROPIC_API_KEY` and other secrets — never read its contents into a
   commit, log message, or chat output.
+- **This repo's `.gitignore` is large and templated** (covers many ecosystems this project
+  doesn't use). It previously had a bare `lib/` rule that silently excluded
+  `frontend/src/lib/api.js` from git entirely since the first commit — fixed by anchoring it
+  to `/lib/` (repo root only). If a tracked-looking file mysteriously never shows up in
+  `git status` after an edit, check `git check-ignore -v <path>` before assuming it's fine.
 - Model in use: `claude-sonnet-4-6` (via `anthropic` SDK), configured in `backend/core/config.py`.
