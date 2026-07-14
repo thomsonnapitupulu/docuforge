@@ -16,11 +16,12 @@ import json
 import uuid
 from typing import AsyncGenerator
 
-from fastapi import FastAPI, File, UploadFile, BackgroundTasks, HTTPException
+from fastapi import FastAPI, File, UploadFile, BackgroundTasks, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, Response
 
 from api.job_store import JobStore
+from api.rate_limit import RateLimiter, client_key
 from api.schemas import (
     ArtifactType, GenerateRequest, GenerateResponse,
     JobStatusResponse, IngestionResponse, StatsResponse
@@ -60,6 +61,8 @@ chunker  = HierarchicalChunker(
 )
 vector_store = VectorStoreManager()
 job_store = JobStore(settings.job_db_path)
+ingest_limiter = RateLimiter(settings.ingest_rate_limit_per_minute)
+generate_limiter = RateLimiter(settings.generate_rate_limit_per_minute)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -67,8 +70,10 @@ job_store = JobStore(settings.job_db_path)
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.post("/ingest", response_model=IngestionResponse)
-async def ingest_document(file: UploadFile = File(...)):
+async def ingest_document(http_request: Request, file: UploadFile = File(...)):
     """Parse, chunk, and embed an uploaded reference document."""
+    ingest_limiter.check(client_key(http_request))
+
     if not file.filename:
         raise HTTPException(400, "No filename provided")
 
@@ -104,22 +109,24 @@ async def ingest_document(file: UploadFile = File(...)):
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.post("/generate", response_model=GenerateResponse)
-async def generate_document(request: GenerateRequest, background_tasks: BackgroundTasks):
+async def generate_document(body: GenerateRequest, http_request: Request, background_tasks: BackgroundTasks):
     """Kick off a document generation job in the background."""
+    generate_limiter.check(client_key(http_request))
+
     stats = vector_store.collection_stats()
     if stats["child_chunks"] == 0:
         raise HTTPException(400, "No documents indexed. Please ingest reference documents first.")
 
-    job_id = request.job_id or str(uuid.uuid4())
+    job_id = body.job_id or str(uuid.uuid4())
 
-    job_store.create(job_id, request.artifact_type.value)
+    job_store.create(job_id, body.artifact_type.value)
 
-    background_tasks.add_task(_run_generation, job_id, request.artifact_type.value)
+    background_tasks.add_task(_run_generation, job_id, body.artifact_type.value)
 
     return GenerateResponse(
         job_id=job_id,
         status="queued",
-        message=f"{request.artifact_type.value} generation started. Poll /jobs/{job_id} for status."
+        message=f"{body.artifact_type.value} generation started. Poll /jobs/{job_id} for status."
     )
 
 

@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     max_retries_per_section: int = 3
     model_name: str = "claude-sonnet-4-6"
 
+    # Rate limiting (per client IP, in-memory — single-instance only)
+    ingest_rate_limit_per_minute: int = 20
+    generate_rate_limit_per_minute: int = 5
+
     # Server
     host: str = "0.0.0.0"
     port: int = 8000
