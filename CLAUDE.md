@@ -74,13 +74,25 @@ Both dev servers are commonly left running across sessions on ports 8000 and 517
 for existing listeners (`lsof -nP -iTCP -sTCP:LISTEN`) before starting new ones, and kill
 stale ones rather than stacking duplicates.
 
+Backend tests:
+```bash
+cd backend
+source venv/bin/activate           # or .venv, whichever this checkout uses
+pytest                             # runs backend/tests/, ~20 tests
+```
+`backend/tests/conftest.py` points Chroma at a throwaway tmp dir and sets a dummy
+`ANTHROPIC_API_KEY` if one isn't already set, so running tests never touches
+`backend/chroma_db/` or requires a real API key.
+
 ## Known constraints / conventions
 
 - **Job store is in-memory** (`_jobs` dict in `api/main.py`) — restarting the backend loses
   all job state. Don't treat job history as durable until this is replaced (tracked in
   `ROADMAP.md` Phase 2).
-- **No test suite yet** for backend or frontend. Be extra careful with changes to
-  `graph/nodes.py` and `graph/builder.py` routing logic since there's no automated safety net.
+- **Backend test coverage is partial**: `ingestion/parser.py`, `ingestion/chunker.py`, and
+  the graph routing functions (`route_after_evaluation`, `route_after_advance`,
+  `advance_section`) are covered. The LLM-calling nodes (`plan_document`, `draft_section`,
+  `evaluate_section`, `compile_document`) and the frontend have no automated tests yet.
 - **`backend/chroma_db/`** is local vector store data, not source — it's gitignored, never
   hand-edit or commit it.
 - **`.env`** holds `ANTHROPIC_API_KEY` and other secrets — never read its contents into a

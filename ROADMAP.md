@@ -25,8 +25,9 @@ basic React pages all exist and appear functionally complete for a single-user l
 - [x] Implement `backend/utils/logger.py` (structured logging setup) and wire it into
       `api/main.py`, `graph/nodes.py`, and `ingestion/*.py` instead of ad-hoc
       `structlog.get_logger()` calls — verified live via a real `/ingest` request
-- [ ] Add backend tests: `ingestion/parser.py`, `ingestion/chunker.py`, and the conditional
-      routing logic in `graph/builder.py` (`route_after_evaluation`, `route_after_advance`)
+- [x] Add backend tests: `ingestion/parser.py`, `ingestion/chunker.py`, and the conditional
+      routing logic (`route_after_evaluation`, `route_after_advance`, `advance_section`) —
+      `backend/tests/`, run with `pytest` from `backend/` (venv active). 20 tests passing.
 - [ ] Add basic error surfacing in the frontend (currently unverified how `GeneratePage.jsx`
       handles a failed job or a dropped SSE stream)
 - [ ] Manually verify the `/jobs/{id}/stream` SSE flow end-to-end against a live backend
