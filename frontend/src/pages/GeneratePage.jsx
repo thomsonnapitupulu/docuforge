@@ -41,6 +41,7 @@ export default function GeneratePage({ artifactType, setArtifactType, onComplete
     setRunning(true);
     setEvents([]);
     setError(null);
+    setStatus(null);
 
     try {
       const { job_id } = await api.generate(artifactType);
@@ -54,11 +55,24 @@ export default function GeneratePage({ artifactType, setArtifactType, onComplete
 
   const streamEvents = (id) => {
     if (esRef.current) esRef.current.close();
-    const es = new EventSource(`http://localhost:8000/jobs/${id}/stream`);
+    const es = api.streamJob(id);
     esRef.current = es;
 
     es.onmessage = (e) => {
-      const data = JSON.parse(e.data);
+      let data;
+      try {
+        data = JSON.parse(e.data);
+      } catch {
+        return; // ignore malformed/heartbeat frames
+      }
+
+      if (data.error) {
+        es.close();
+        setRunning(false);
+        setStatus(null);
+        setError(data.error);
+        return;
+      }
       if (data.event) {
         setEvents(prev => [...prev, data.event]);
       }
@@ -70,9 +84,13 @@ export default function GeneratePage({ artifactType, setArtifactType, onComplete
           // Fetch final document
           api.getJob(id).then(job => {
             onComplete(id, job.final_document);
+          }).catch(() => {
+            setStatus(null);
+            setError("Job finished but the result could not be retrieved. Please try again.");
           });
         }
         if (data.status === "error") {
+          setStatus(null);
           setError("Generation failed. Check backend logs.");
         }
       }
@@ -81,6 +99,7 @@ export default function GeneratePage({ artifactType, setArtifactType, onComplete
     es.onerror = () => {
       es.close();
       setRunning(false);
+      setStatus(null);
       setError("SSE connection lost. Check if backend is running.");
     };
   };
@@ -151,8 +170,14 @@ export default function GeneratePage({ artifactType, setArtifactType, onComplete
 
       {/* Error */}
       {error && (
-        <div className="bg-red-950/40 border border-red-800 rounded px-4 py-3 text-red-400 text-sm">
-          {error}
+        <div className="bg-red-950/40 border border-red-800 rounded px-4 py-3 text-red-400 text-sm flex items-center justify-between gap-4">
+          <span>{error}</span>
+          <button
+            onClick={startGeneration}
+            className="shrink-0 px-3 py-1 text-xs border border-red-700 rounded hover:bg-red-900/40 transition-colors"
+          >
+            Try again
+          </button>
         </div>
       )}
     </div>
