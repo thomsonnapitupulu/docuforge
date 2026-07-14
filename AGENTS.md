@@ -13,6 +13,25 @@ Operating rules for any agent (Claude Code or otherwise) working in this reposit
 - Prefer several small, logically-scoped commits over one large commit at the end of a session.
 - Never amend or rewrite existing commits unless explicitly asked.
 
+## Commit message format — Conventional Commits
+
+Every commit subject line follows `<type>: <description>` (lowercase type, imperative,
+no trailing period), using whichever of these fits the change:
+
+| Type | Use for |
+|---|---|
+| `feat` | new functionality (a route, a component, a capability) |
+| `fix` | bug fix |
+| `docs` | documentation only (`README.md`, `CLAUDE.md`, `AGENTS.md`, `ROADMAP.md`, comments) |
+| `test` | adding or updating tests, no production code change |
+| `refactor` | code change that neither fixes a bug nor adds a feature |
+| `chore` | tooling, dependency bumps, config, `.gitignore`, lockfiles |
+| `perf` | performance improvement |
+| `build` | build system or packaging changes |
+
+Add a scope when it disambiguates, e.g. `feat(api): add job cancellation endpoint`.
+Keep the body (if any) focused on *why*, same as the rest of this repo's commit style.
+
 ## What never gets staged
 
 Before every `git add`, confirm none of these are included (check `.gitignore` covers them,
